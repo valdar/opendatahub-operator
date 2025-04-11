@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/onsi/gomega/format"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -15,6 +16,8 @@ import (
 	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"golang.org/x/exp/maps"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -35,14 +38,42 @@ import (
 type TestFn func(t *testing.T)
 
 // DeletionPolicy type representing the deletion policy.
-type DeletionPolicy string
+type DeletionPolicy int
 
 // Constants for the valid deletion policies.
 const (
-	DeletionPolicyAlways    DeletionPolicy = "always"
-	DeletionPolicyOnFailure DeletionPolicy = "on-failure"
-	DeletionPolicyNever     DeletionPolicy = "never"
+	DeletionPolicyAlways DeletionPolicy = iota
+	DeletionPolicyOnFailure
+	DeletionPolicyNever
 )
+
+var deletionPolicyName = map[DeletionPolicy]string{
+	DeletionPolicyAlways:    "always",
+	DeletionPolicyOnFailure: "on-failure",
+	DeletionPolicyNever:     "never",
+}
+
+var stringToDeletionPolicy = map[string]DeletionPolicy{
+	"always":     DeletionPolicyAlways,
+	"on-failure": DeletionPolicyOnFailure,
+	"never":      DeletionPolicyNever,
+}
+
+func (dp DeletionPolicy) String() string {
+	return deletionPolicyName[dp]
+}
+
+func ParseDeletionPolicy(dp string) (DeletionPolicy, error) {
+	value, found := stringToDeletionPolicy[dp]
+	if !found {
+		var keys []string
+		for k := range stringToDeletionPolicy {
+			keys = append(keys, k)
+		}
+		return 0, fmt.Errorf("invalid deletion policy: %s, accepted values are: %v", dp, keys)
+	}
+	return value, nil
+}
 
 // Struct to store test configurations.
 type TestContextConfig struct {
@@ -52,6 +83,7 @@ type TestContextConfig struct {
 
 	operatorControllerTest bool
 	webhookTest            bool
+	TestTimeouts           TestTimeouts
 }
 
 // TestGroup defines the test groups.
@@ -62,12 +94,26 @@ type TestGroup struct {
 	flags     arrayFlags
 }
 
+type TestTimeouts struct {
+	generalRetryInterval    time.Duration
+	eventuallyTimeoutShort  time.Duration // = 10 * time.Second // Retry interval for general operations
+	eventuallyTimeoutMedium time.Duration // = 7 * time.Minute  // Medium timeout for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
+	eventuallyTimeoutLong   time.Duration // = 10 * time.Minute // Long timeout for more complex readiness (e.g., DSCInitialization, KServe).
+}
+
 type TestCase struct {
 	name   string
 	testFn func(t *testing.T)
 }
 
 var (
+	// Gomega default values for Eventually/Consistently can be found here:
+	// https://onsi.github.io/gomega/#making-asynchronous-assertions
+	gomegaEventuallyTimeout        time.Duration
+	gomegaEventuallyPollInterval   time.Duration
+	gomegaConsistentlyTimeout      time.Duration
+	gomegaConsistentlyPollInterval time.Duration
+
 	Scheme   = runtime.NewScheme()
 	testOpts = TestContextConfig{}
 
@@ -240,26 +286,77 @@ func TestOdhOperator(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	// call flag.Parse() here if TestMain uses flags
-	flag.StringVar(&testOpts.operatorNamespace, "operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
-	flag.StringVar(&testOpts.appsNamespace, "applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
-	flag.StringVar((*string)(&testOpts.deletionPolicy), "deletion-policy", "always",
+	// call flag.Parse()/pflag.Parse() in this function if TestMain uses flags
+	viper.SetEnvPrefix("e2e_test")
+	replacer := strings.NewReplacer("-", "_")
+	viper.SetEnvKeyReplacer(replacer)
+	viper.AutomaticEnv()
+
+	viper.SetDefault("retryInterval", "10s") // Retry interval for general operations
+	viper.SetDefault("timeoutShort", "1m")   // Short timeout
+	viper.SetDefault("timeoutMedium", "7m")  // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
+	viper.SetDefault("timeoutLong", "10m")   // Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).
+
+	viper.SetDefault("gomegaEventuallyTimeout", "5m")        // Timeout used for Eventually; overrides Gomega's default of 1 second.
+	viper.SetDefault("gomegaEventuallyPollInterval", "2s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
+	viper.SetDefault("gomegaConsistentlyTimeout", "10s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
+	viper.SetDefault("gomegaConsistentlyPollInterval", "2s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
+
+	pflag.String("operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
+	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
+	pflag.String("deletion-policy", "always",
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 
-	flag.BoolVar(&testOpts.operatorControllerTest, "test-operator-controller", true, "run operator controller tests")
-	flag.BoolVar(&testOpts.webhookTest, "test-webhook", true, "run webhook tests")
+	pflag.Bool("test-operator-controller", true, "run operator controller tests")
+	pflag.Bool("test-webhook", true, "run webhook tests")
 
 	// Component flags
 	componentNames := strings.Join(Components.Names(), ", ")
-	flag.BoolVar(&Components.enabled, "test-components", Components.enabled, "Enable tests for components")
-	flag.Var(&Components.flags, "test-component", "Run tests for the specified component. Valid names: "+componentNames)
+	pflag.Bool("test-components", Components.enabled, "Enable testing of individual components specified by --test-component flag")
+	pflag.StringSlice("test-component", Components.Names(), "Run tests for the specified component. Valid names: "+componentNames)
 
 	// Service flags
 	serviceNames := strings.Join(Services.Names(), ", ")
-	flag.BoolVar(&Services.enabled, "test-services", Services.enabled, "Enable tests for services")
-	flag.Var(&Services.flags, "test-service", "Run tests for the specified service. Valid names: "+serviceNames)
+	pflag.Bool("test-services", Services.enabled, "Enable testing of individual services specified by --test-service flag")
+	pflag.StringSlice("test-service", Services.Names(), "Run tests for the specified service. Valid names: "+serviceNames)
 
-	flag.Parse()
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
+	// workaround for pflag limitation see: https://github.com/spf13/pflag/issues/238
+	if err := ParseTestFlags(); err != nil {
+		fmt.Printf("Failed to parse go test flags (i.e. the one with -test. prefix): %v", err)
+	}
+
+	pflag.Parse()
+	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
+		fmt.Printf("Error in binding tests flags: %s", err.Error())
+		os.Exit(1)
+	}
+
+	gomegaEventuallyTimeout = viper.GetDuration("gomegaEventuallyTimeout")
+	gomegaEventuallyPollInterval = viper.GetDuration("gomegaEventuallyPollInterval")
+	gomegaConsistentlyTimeout = viper.GetDuration("gomegaConsistentlyTimeout")
+	gomegaConsistentlyPollInterval = viper.GetDuration("gomegaConsistentlyPollInterval")
+
+	testOpts.TestTimeouts = TestTimeouts{
+		generalRetryInterval:    viper.GetDuration("retryInterval"),
+		eventuallyTimeoutShort:  viper.GetDuration("timeoutShort"),
+		eventuallyTimeoutMedium: viper.GetDuration("timeoutMedium"),
+		eventuallyTimeoutLong:   viper.GetDuration("timeoutLong"),
+	}
+	testOpts.operatorNamespace = viper.GetString("operator-namespace")
+	testOpts.appsNamespace = viper.GetString("applications-namespace")
+	var err error
+	if testOpts.deletionPolicy, err = ParseDeletionPolicy(viper.GetString("deletion-policy")); err != nil {
+		fmt.Print(err.Error())
+		os.Exit(1)
+	}
+	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
+	testOpts.webhookTest = viper.GetBool("test-webhook")
+	Components.enabled = viper.GetBool("test-components")
+	Components.flags = viper.GetStringSlice("test-component")
+	Services.enabled = viper.GetBool("test-services")
+	Services.flags = viper.GetStringSlice("test-service")
 
 	if err := Components.Validate(); err != nil {
 		fmt.Printf("test-component: %s", err.Error())

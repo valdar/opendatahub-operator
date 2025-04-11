@@ -406,6 +406,20 @@ Once the above variables are set, run the following:
 make e2e-test
 ```
 
+Evn vars can be set to control tests specific timeouts:
+
+| Env var                                  | Description                                                                              | Default value |
+|------------------------------------------|------------------------------------------------------------------------------------------|---------------|
+| E2E_TEST_RETRYINTERVAL                   | Retry interval for general operations                                                    | `10s`         |
+| E2E_TEST_TIMEOUTSHORT                    | Short timeout                                                                            | `1m`          |
+| E2E_TEST_TIMEOUTMEDIUM                   | TMedium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster). | `7m`          |
+| E2E_TEST_TIMEOUTLONG                     | Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).              | `10m`         |
+| E2E_TEST_GOMEGAEVENTUALLYTIMEOUT         | Timeout used for Eventually; overrides Gomega's default of 1 second.                     | `5m`          |
+| E2E_TEST_GOMEGAEVENTUALLYPOLLINTERVAL    | Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.          | `2s`          |
+| E2E_TEST_GOMEGACONSISTENTLYTIMEOUT       | Duration used for Consistently; overrides Gomega's default of 2 seconds.                 | `10s`         |
+| E2E_TEST_GOMEGACONSISTENTLYPOLLINTERVAL  | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.        | `2s`          |
+| E2E_TEST_FLAGS                           | Additional flags that can be passed to e2e-tests (see flags table below)                 |               |
+
 Additional flags that can be passed to e2e-tests by setting up `E2E_TEST_FLAGS`
 variable. Following table lists all the available flags to run the tests:
 
@@ -415,8 +429,11 @@ variable. Following table lists all the available flags to run the tests:
 | --applications-namespace   | Namespace where the ODH applications are deployed.                                                                                                                            | `opendatahub`                 |
 | --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes       | `true`                        |
 | --test-webhook             | To configure the execution of tests rellated to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
-| --test-component           | A repeatable flag that control what component should be tested, by default all component specific test are executed                                                           | `true`                        |
 | --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                    | `always`                      |
+| --test-components          | Enable testing of individual components specified by --test-component flag                                                                                                    | `true`                        |
+| --test-component           | A repeatable (or comma separated no spaces) flag that control what component should be tested, by default all component specific test are executed                            | `all components`              |
+| --test-services            | Enable testing of individual services specified by --test-service flag                                                                                                        | `true`                        |
+| --test-service             | A repeatable (or comma separated no spaces) flag that control what services should be tested, by default all service specific test are executed                               | `all services`                |
 
 Example command to run full test suite skipping the test for DataScienceCluster deletion.
 

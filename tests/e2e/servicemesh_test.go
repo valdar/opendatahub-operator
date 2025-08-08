@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -15,8 +17,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	authorinoDefaultName      = "authorino"
+	authorinoDefaultNamespace = "opendatahub-auth-provider"
 )
 
 type ServiceMeshTestCtx struct {
@@ -47,6 +55,7 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate ServiceMesh CR creation", smCtx.ValidateServiceMeshCRCreation},
 		{"Validate No ServiceMesh FeatureTrackers", smCtx.ValidateNoServiceMeshFeatureTrackers},
+		{"Validate Authorino resources", smCtx.ValidateAuthorinoResources},
 	}
 
 	// Run the test suite.
@@ -83,6 +92,42 @@ func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshFeatureTrackers(t *testing.T)
 			),
 		}),
 		WithCustomErrorMsg("Expected no ServiceMesh-related FeatureTracker resources to be present"),
+	)
+}
+
+// ValidateAuthorinoResources ensures authorino resource is ready and authorino deployment template was properly annotated.
+func (tc *ServiceMeshTestCtx) ValidateAuthorinoResources(t *testing.T) {
+	t.Helper()
+
+	namespacedAuthorino := types.NamespacedName{Name: authorinoDefaultName, Namespace: authorinoDefaultNamespace}
+	// ensure authorino operator is installed
+	tc.EnsureOperatorInstalled(types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, true)
+
+	// Validate the "Ready" condition for authorino resource
+	conditions := []gTypes.GomegaMatcher{
+		jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+	}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Authorino, namespacedAuthorino),
+		WithCondition(And(conditions...)),
+	)
+
+	// Validate authorino deployment was annotated
+	conditionsDeployment := []gTypes.GomegaMatcher{
+		jq.Match(`.spec.template.metadata.labels | has("sidecar.istio.io/inject") and .["sidecar.istio.io/inject"] == "true"`),
+	}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, namespacedAuthorino),
+		WithCondition(And(conditionsDeployment...)),
+	)
+
+	// Validate authorino deployment is re-annotated after deletion
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Deployment, namespacedAuthorino),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, namespacedAuthorino),
+		WithCondition(And(conditionsDeployment...)),
 	)
 }
 

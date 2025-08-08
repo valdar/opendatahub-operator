@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -158,10 +159,6 @@ func initializeAuthorino(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		odhtypes.TemplateInfo{
 			FS:   resourcesFS,
 			Path: authorinoServiceMeshMemberTemplate,
-		},
-		odhtypes.TemplateInfo{
-			FS:   resourcesFS,
-			Path: authorinoDeploymentInjectionTemplate,
 		},
 		odhtypes.TemplateInfo{
 			FS:   resourcesFS,
@@ -336,37 +333,109 @@ func checkAuthorinoReadiness(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return err
 	}
 
-	deployment := &appsv1.Deployment{}
+	authorino := &unstructured.Unstructured{}
+	authorino.SetGroupVersionKind(gvk.Authorino)
 	err = rr.Client.Get(ctx, client.ObjectKey{
 		Name:      authProviderName,
 		Namespace: authorinoNamespace,
-	}, deployment)
+	}, authorino)
 
 	if err != nil {
 		rr.Conditions.MarkFalse(
 			status.CapabilityServiceMeshAuthorization,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("Authorino deployment not found: %v", err),
+			conditions.WithMessage("Authorino resource not found: %v", err),
 		)
 		return nil
 	}
 
-	if deployment.Status.ReadyReplicas == deployment.Status.Replicas && deployment.Status.Replicas > 0 {
+	ready, err := isAuthorinoReady(authorino)
+	if err == nil && ready {
 		rr.Conditions.MarkTrue(
 			status.CapabilityServiceMeshAuthorization,
 			conditions.WithReason(status.ReadyReason),
-			conditions.WithMessage("Authorino deployment is ready"),
+			conditions.WithMessage("Authorino resource is ready"),
 		)
 	} else {
 		rr.Conditions.MarkFalse(
 			status.CapabilityServiceMeshAuthorization,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("Authorino deployment not ready: %d/%d replicas ready",
-				deployment.Status.ReadyReplicas, deployment.Status.Replicas),
+			conditions.WithMessage("Authorino resource not ready: %v", err),
 		)
 	}
 
 	return nil
+}
+
+func patchAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	authorino, err := getAutorinoResource(ctx, rr)
+
+	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+		// nothing to do, authorino cr or crd do not exist
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	patch := createAuthorinoDeploymentPatch(authorino.GetName(), authorino.GetNamespace())
+	data, errJSON := patch.MarshalJSON()
+	if errJSON != nil {
+		return fmt.Errorf("error converting yaml to json: %w", errJSON)
+	}
+
+	if errPatch := rr.Client.Patch(ctx, patch, client.RawPatch(k8stypes.MergePatchType, data)); errPatch != nil {
+		return fmt.Errorf("failed patching resource: %w", errPatch)
+	}
+	return nil
+}
+
+func getAutorinoResource(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
+	authorinoNamespace, err := getAuthorinoNamespace(rr)
+	if err != nil {
+		return nil, err
+	}
+
+	authorino := &unstructured.Unstructured{}
+	authorino.SetGroupVersionKind(gvk.Authorino)
+	err = rr.Client.Get(ctx, client.ObjectKey{
+		Name:      authProviderName,
+		Namespace: authorinoNamespace,
+	}, authorino)
+
+	return authorino, err
+}
+
+func isAuthorinoReady(authorino *unstructured.Unstructured) (bool, error) {
+	conditions, found, err := unstructured.NestedSlice(authorino.Object, "status", "conditions")
+	if err != nil {
+		return false, err
+	}
+
+	if !found {
+		return false, errors.New("no Authorino conditions found, Authorino may be starting up")
+	}
+
+	for _, condition := range conditions {
+		conditionMap, ok := condition.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		condType, found := conditionMap["type"]
+		if !found {
+			continue
+		}
+		condStatus, found := conditionMap["status"]
+		if !found {
+			continue
+		}
+
+		if condType == "Ready" && condStatus == "True" {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func cleanupSMCP(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -399,4 +468,28 @@ func cleanupSMCP(ctx context.Context, rr *odhtypes.ReconciliationRequest) error 
 	}
 
 	return nil
+}
+
+func createAuthorinoDeploymentPatch(name string, namespace string) *unstructured.Unstructured {
+	authorinoDeploymentPatch := &unstructured.Unstructured{}
+
+	authorinoDeploymentPatch.Object = map[string]interface{}{
+		"apiVersion": gvk.Deployment.GroupVersion().String(),
+		"kind":       gvk.Deployment.Kind,
+		"metadata": map[string]interface{}{
+			"name":      name,
+			"namespace": namespace,
+		},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						"sidecar.istio.io/inject": "true",
+					},
+				},
+			},
+		},
+	}
+
+	return authorinoDeploymentPatch
 }

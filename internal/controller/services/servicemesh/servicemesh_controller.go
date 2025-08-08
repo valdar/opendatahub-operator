@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -16,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
@@ -50,9 +50,12 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.ServiceMeshMember,
 			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMeshMember))).
 		OwnsGVK(gvk.Authorino,
-			reconciler.Dynamic(actions.IfGVKInstalled(gvk.Authorino))).
-		Owns(&appsv1.Deployment{},
-			reconciler.WithPredicates(NewAuthorinoDeploymentPredicate())).
+			reconciler.Dynamic(actions.IfGVKInstalled(gvk.Authorino)),
+			reconciler.WithPredicates(dependent.Predicate{
+				WatchDelete: true,
+				WatchUpdate: true,
+				WatchStatus: true,
+			})).
 		// watch for SMCP readiness
 		WatchesGVK(gvk.ServiceMeshControlPlane,
 			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMeshControlPlane)),
@@ -71,6 +74,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(patchAuthorinoDeployment).
 		WithAction(deleteFeatureTrackers).
 		WithAction(checkSMCPReadiness).
 		WithAction(checkAuthorinoReadiness).

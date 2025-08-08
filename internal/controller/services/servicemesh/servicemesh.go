@@ -43,7 +43,6 @@ const (
 var (
 	authorinoTemplate                        = path.Join(baseDir, authorinoDir, "base/operator-cluster-wide-no-tls.tmpl.yaml")
 	authorinoServiceMeshMemberTemplate       = path.Join(baseDir, authorinoDir, "auth-smm.tmpl.yaml")
-	authorinoDeploymentInjectionTemplate     = path.Join(baseDir, authorinoDir, "deployment.injection.patch.tmpl.yaml")
 	authorinoServiceMeshControlPlaneTemplate = path.Join(baseDir, authorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml")
 
 	podMonitorTemplate     = path.Join(baseDir, metricsDir, "envoy-metrics-collection.tmpl.yaml")

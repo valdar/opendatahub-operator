@@ -6,7 +6,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	gatewayctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -65,12 +65,12 @@ func TestServiceHandler_GetManagementState(t *testing.T) {
 
 	tests := []struct {
 		name string
-		dsci *dsciv1.DSCInitialization
+		dsci *dsciv2.DSCInitialization
 	}{
-		{"with empty DSCInitialization", &dsciv1.DSCInitialization{}},
+		{"with empty DSCInitialization", &dsciv2.DSCInitialization{}},
 		{"with nil DSCInitialization", nil},
-		{"with configured DSCInitialization", &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		{"with configured DSCInitialization", &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		}},
@@ -83,7 +83,7 @@ func TestServiceHandler_GetManagementState(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			state := handler.GetManagementState(platform.platform, &dsciv1.DSCInitialization{})
+			state := handler.GetManagementState(platform.platform, &dsciv2.DSCInitialization{})
 			g.Expect(state).Should(Equal(operatorv1.Managed), platform.name+" should always be managed")
 		})
 	}
@@ -132,7 +132,7 @@ func TestServiceHandler_Implements_ServiceInterface(t *testing.T) {
 	name := handler.GetName()
 	g.Expect(name).Should(Equal(serviceApi.GatewayServiceName))
 
-	state := handler.GetManagementState(cluster.OpenDataHub, &dsciv1.DSCInitialization{})
+	state := handler.GetManagementState(cluster.OpenDataHub, &dsciv2.DSCInitialization{})
 	g.Expect(state).Should(Equal(operatorv1.Managed))
 
 	// Test NewReconciler method exists (will panic with nil manager)

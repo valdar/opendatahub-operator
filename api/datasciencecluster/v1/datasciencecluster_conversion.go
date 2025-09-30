@@ -25,7 +25,6 @@ import (
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscv2.DataScienceCluster)
 
-	dst.TypeMeta = c.TypeMeta
 	dst.ObjectMeta = c.ObjectMeta
 
 	dst.Spec = dscv2.DataScienceClusterSpec{
@@ -48,7 +47,6 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 	src := srcRaw.(*dscv2.DataScienceCluster)
 
-	c.TypeMeta = src.TypeMeta
 	c.ObjectMeta = src.ObjectMeta
 
 	c.Spec = DataScienceClusterSpec{

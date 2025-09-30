@@ -25,7 +25,6 @@ import (
 func (c *DSCInitialization) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dsciv2.DSCInitialization)
 
-	dst.TypeMeta = c.TypeMeta
 	dst.ObjectMeta = c.ObjectMeta
 
 	dst.Spec = dsciv2.DSCInitializationSpec{
@@ -62,7 +61,6 @@ func (c *DSCInitialization) ConvertTo(dstRaw conversion.Hub) error {
 func (c *DSCInitialization) ConvertFrom(srcRaw conversion.Hub) error {
 	src := srcRaw.(*dsciv2.DSCInitialization)
 
-	c.TypeMeta = src.TypeMeta
 	c.ObjectMeta = src.ObjectMeta
 
 	c.Spec = DSCInitializationSpec{

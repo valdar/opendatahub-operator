@@ -31,7 +31,6 @@ var (
 
 func TestKueueWebhook_Integration(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skipping testing due to RHOAIENG-35095")
 
 	testCases := []struct {
 		name              string

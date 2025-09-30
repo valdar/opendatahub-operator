@@ -44,7 +44,6 @@ func WithModelRegistryDefaulting() func(*dscv2.DataScienceCluster) {
 // It uses table-driven tests to verify singleton enforcement, deletion, and defaulting behavior in a real envtest environment.
 func TestDataScienceClusterV2_Integration(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skipping testing due to RHOAIENG-35095")
 
 	testCases := []struct {
 		name  string

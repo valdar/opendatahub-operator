@@ -7,10 +7,12 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"k8s.io/apimachinery/pkg/types"
+	// "k8s.io/apimachinery/pkg/types".
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	// modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry".
 	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
@@ -44,7 +46,6 @@ func WithModelRegistryDefaulting() func(*dscv1.DataScienceCluster) {
 // It uses table-driven tests to verify singleton enforcement, deletion, and defaulting behavior in a real envtest environment.
 func TestDataScienceClusterV1_Integration(t *testing.T) {
 	t.Parallel()
-	t.Skip("Skipping testing due to RHOAIENG-35095")
 
 	testCases := []struct {
 		name  string

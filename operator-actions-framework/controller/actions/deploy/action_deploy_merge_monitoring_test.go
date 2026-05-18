@@ -3,10 +3,10 @@ package deploy_test
 import (
 	"testing"
 
+	"github.com/lburgazzoli/gomega-matchers/pkg/matchers/jq"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/operator-actions-framework/controller/actions/deploy"
 
 	. "github.com/onsi/gomega"
 )

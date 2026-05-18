@@ -130,4 +130,3 @@ func TestSummarizeReport(t *testing.T) {
 		})
 	}
 }
-

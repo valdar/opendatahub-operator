@@ -63,11 +63,6 @@ AzureKubernetesEngineStatus defines the observed state of AzureKubernetesEngine.
 _Appears in:_
 - [AzureKubernetesEngine](#azurekubernetesengine)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### CoreWeaveKubernetesEngine
@@ -119,10 +114,5 @@ CoreWeaveKubernetesEngineStatus defines the observed state of CoreWeaveKubernete
 _Appears in:_
 - [CoreWeaveKubernetesEngine](#coreweavekubernetesengine)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 

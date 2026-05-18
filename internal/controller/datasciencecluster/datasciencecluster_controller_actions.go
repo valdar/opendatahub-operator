@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	modelsasservicectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
@@ -182,7 +184,10 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	instance.Status.Release = rr.Release
+	instance.Status.Release = common.Release{
+		Name:    rr.Release.Name,
+		Version: version.OperatorVersion{Version: rr.Release.Version},
+	}
 
 	err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry())
 	if err != nil {

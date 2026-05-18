@@ -1,24 +1,12 @@
 package errors
 
 import (
-	"fmt"
+	fwerrors "github.com/opendatahub-io/operator-actions-framework/controller/actions/errors"
 )
 
-// StopError is a marker error that thew ComponentController uses
-// to break out from the action execution loop.
-type StopError struct {
-	reason error
-}
+type StopError = fwerrors.StopError
 
-func (e StopError) Error() string {
-	return e.reason.Error()
-}
-
-func NewStopErrorW(reason error) StopError {
-	return StopError{reason}
-}
-func NewStopError(format string, args ...any) StopError {
-	return StopError{
-		fmt.Errorf(format, args...),
-	}
-}
+var (
+	NewStopError  = fwerrors.NewStopError
+	NewStopErrorW = fwerrors.NewStopErrorW
+)

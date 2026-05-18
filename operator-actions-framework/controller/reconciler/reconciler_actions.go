@@ -10,8 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/operator-actions-framework/controller/actions"
+	"github.com/opendatahub-io/operator-actions-framework/controller/types"
 )
 
 type dynamicWatchFn func(client.Object, handler.EventHandler, ...predicate.Predicate) error
@@ -30,7 +30,6 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 		gvk := w.object.GetObjectKind().GroupVersionKind()
 
 		if _, ok := a.watched[gvk]; ok {
-			// already registered
 			continue
 		}
 
@@ -70,7 +69,6 @@ func newDynamicWatch(fn dynamicWatchFn, watches []watchInput) *dynamicWatchActio
 
 	for i := range watches {
 		if !watches[i].dynamic {
-			// not dynamic
 			continue
 		}
 
